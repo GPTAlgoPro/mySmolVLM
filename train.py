@@ -16,12 +16,32 @@ import swanlab
 
 from utils import load_model, load_processor
 
+# 设置默认设备为CUDA
 device = "cuda"
 
 ################
 # 加载数据集
 ################
 def load_mm_data(select_data):
+    """
+    加载多模态数据集。
+    
+    该函数根据指定的数据集名称加载相应的多模态数据集，支持单个数据集或所有数据集的加载。
+    
+    Args:
+        select_data (str): 要加载的数据集名称，可以是具体数据集名称或"all"表示加载所有数据集。
+    
+    Returns:
+        datasets.DatasetDict: 包含训练集和测试集的数据集字典。
+    
+    Raises:
+        ValueError: 当指定的数据集名称不存在时抛出异常。
+    
+    Example:
+        >>> data = load_mm_data("cocoqa")
+        >>> print(f"训练集大小: {len(data['train'])}")
+        >>> print(f"测试集大小: {len(data['test'])}")
+    """
     all_data_names = [
         "chartqa",
         "finqa",
@@ -57,7 +77,7 @@ def load_mm_data(select_data):
     elif select_data in all_data_names:
         tmp_data = [select_data]
     else:
-        raise f"cannot find {tmp_data}"
+        raise ValueError(f"cannot find dataset: {select_data}")
 
     data_list = []
     for data_name in tmp_data:
@@ -80,6 +100,22 @@ def load_mm_data(select_data):
 # 冻结模型参数&打印模型可训练参数数
 ################
 def freeze_model(qwen_smvl):
+    """
+    冻结模型的部分参数，只保留特定层可训练。
+    
+    该函数冻结模型的文本编码器和视觉编码器参数，只保留连接器层和输出层可训练。
+    
+    Args:
+        qwen_smvl (AutoModelForImageTextToText): 需要冻结参数的模型实例。
+    
+    Returns:
+        AutoModelForImageTextToText: 参数已冻结的模型实例。
+    
+    Example:
+        >>> model = load_model()
+        >>> model = freeze_model(model)
+        >>> print_trainable_parameters(model)  # 查看可训练参数数量
+    """
     for _, param in qwen_smvl.model.text_model.named_parameters():
         param.requires_grad = False
     for _, param in qwen_smvl.model.vision_model.named_parameters():
@@ -91,7 +127,18 @@ def freeze_model(qwen_smvl):
 
 def print_trainable_parameters(model):
     """
-    Prints the number of trainable parameters in the model.
+    打印模型的可训练参数数量和比例。
+    
+    Args:
+        model (torch.nn.Module): 需要分析的模型实例。
+    
+    Returns:
+        None: 直接打印参数统计信息，不返回值。
+    
+    Example:
+        >>> model = load_model()
+        >>> print_trainable_parameters(model)
+        trainable params: 12.34M || all params: 123.45M || trainable%: 10.0
     """
     trainable_params = 0
     all_param = 0
@@ -108,6 +155,25 @@ def print_trainable_parameters(model):
 # 数据处理
 ################
 def data_collate_fix2k(examples, processor, device, max_length=2048):
+    """
+    数据批处理函数，将原始数据转换为模型输入格式。
+    
+    该函数处理包含图像和文本的多模态数据，将其转换为模型可接受的输入格式，
+    并设置适当的标签用于训练。
+    
+    Args:
+        examples (list): 包含多个样本的列表，每个样本包含图像和文本数据。
+        processor (AutoProcessor): 用于处理文本和图像的处理器。
+        device (str): 数据将被发送到的设备，如"cuda"或"cpu"。
+        max_length (int, optional): 文本序列的最大长度。默认为2048。
+    
+    Returns:
+        dict: 包含模型输入的字典，已转换为指定设备和数据类型。
+    
+    Example:
+        >>> batch = data_collate_fix2k(examples, processor, "cuda")
+        >>> model_outputs = model(**batch)
+    """
     batch_text = []
     batch_image = []
     for example in examples:
@@ -141,8 +207,8 @@ def data_collate_fix2k(examples, processor, device, max_length=2048):
         truncation=True,
     )
     labels = batch["input_ids"].clone()
-    labels[labels == processor.tokenizer.pad_token_id] = -100
-    labels[labels == processor.image_token_id] = -100
+    labels[labels == processor.tokenizer.pad_token_id] = -100  # 忽略padding token的损失
+    labels[labels == processor.image_token_id] = -100  # 忽略图像token的损失
     batch["labels"] = labels
     return batch.to(device, dtype=torch.bfloat16)
 
@@ -152,6 +218,38 @@ def data_collate_fix2k(examples, processor, device, max_length=2048):
 ################
 @dataclass
 class MyTrainArgs(TrainingArguments):
+    """
+    自定义训练参数类，继承自transformers.TrainingArguments。
+    
+    该类扩展了TrainingArguments，添加了特定于本项目的训练参数配置。
+    
+    Attributes:
+        train_data (str): 训练数据集名称，默认为"cocoqa"。
+        seed (int): 随机种子，默认为42。
+        data_seed (int): 数据随机种子，默认为42。
+        per_device_train_batch_size (int): 每个设备的训练批次大小，默认为1。
+        per_device_eval_batch_size (int): 每个设备的评估批次大小，默认为1。
+        gradient_accumulation_steps (int): 梯度累积步数，默认为4。
+        dataloader_pin_memory (bool): 是否使用数据加载器的pin_memory，默认为False。
+        warmup_ratio (float): 学习率预热比例，默认为0.1。
+        learning_rate (float): 学习率，默认为1e-4。
+        lr_scheduler_type (str): 学习率调度器类型，默认为"cosine"。
+        weight_decay (float): 权重衰减，默认为0.01。
+        logging_steps (int): 日志记录步数，默认为5。
+        evaluation_strategy (str): 评估策略，默认为"steps"。
+        eval_steps (int): 评估步数，默认为10。
+        save_strategy (str): 保存策略，默认为"steps"。
+        save_steps (int): 保存步数，默认为10。
+        save_total_limit (int): 保存的检查点总数限制，默认为8。
+        optim (str): 优化器类型，默认为"adamw_torch"。
+        bf16 (bool): 是否使用bfloat16精度，默认为True。
+        output_dir (str): 输出目录，默认为"./model/qwen-smovlm"。
+        overwrite_output_dir (bool): 是否覆盖输出目录，默认为True。
+        report_to (str): 报告工具，默认为"swanlab"。
+        run_name (str): 运行名称，默认为"freeze_except_connector_fulldata"。
+        remove_unused_columns (bool): 是否移除未使用的列，默认为False。
+        gradient_checkpointing (bool): 是否使用梯度检查点，默认为False。
+    """
     # 更新TrainingArguments的参数形式，原本的形式会报错参数不存在
     train_data: str = "cocoqa"
     seed: int = 42
@@ -181,6 +279,26 @@ class MyTrainArgs(TrainingArguments):
 
 
 def main(training_args):
+    """
+    主函数，执行模型训练和推理的完整流程。
+    
+    该函数包含以下主要步骤：
+    1. 初始化模型和处理器
+    2. 准备训练数据集
+    3. 训练模型
+    4. 保存模型
+    5. 使用训练好的模型进行推理示例
+    
+    Args:
+        training_args (MyTrainArgs): 训练参数配置。
+    
+    Returns:
+        None
+    
+    Example:
+        >>> args = MyTrainArgs(output_dir="./output", train_data="cocoqa")
+        >>> main(args)
+    """
     ################
     # 初始化模型&Tokenizer
     ################
@@ -282,6 +400,7 @@ def main(training_args):
             print("################# 生成文本 #################")
             print(generated_texts[0])
 
+            # 记录推理结果到SwanLab
             table = swanlab.echarts.Table()
             headers = ["输入问题", "模型输出"]
             rows = [[question, generated_texts[0]]]
@@ -296,6 +415,13 @@ def main(training_args):
 
 
 if __name__ == "__main__":
+    """
+    脚本入口点，解析命令行参数并启动训练流程。
+    
+    支持两种参数传递方式：
+    1. 通过命令行参数直接传递
+    2. 通过YAML配置文件传递
+    """
     parser = HfArgumentParser(MyTrainArgs)
     if len(sys.argv) == 2 and sys.argv[1].endswith(".yaml"):
         # If we pass only one argument to the script and it's the path to a yaml file,
