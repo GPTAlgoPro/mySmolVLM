@@ -31,7 +31,7 @@
   <figure>
   <img src="./resource/smolvlm2.png" alt="smolvlm2" width="400" />
   </figure>
-    <figcaption style="text-align: center; width: 100%; margin-top: 10px;">SmolVLM2的架构图</figcaption>
+    <text style="text-align: center; width: 100%; margin-top: 10px;">SmolVLM2的架构图</text>
 </div>
 
 这个设计是现在比较常见的VLM方案。核心设计思想就是让视觉模型的输出特征与经过embedding的文本特征直接拼接后输入到语言模型（LLM）当中，没有交叉注意力等模块。相比于早期LLaVA等架构，这种最大的优点就是可以最大程度复用已有的语言模型。以Qwen2.5-VL为例，其3B、7B、72B模型大小指的只是LLM部分，并没有包含Vision模块，实际上3B模型的参数量接近4B，视觉模块大概0.4B左右，三个不同大小的VLM使用的是统一的视觉模型。对于一些较大的VLM来说，构建视觉模型时绝大多数的训练都集中在特征映射模块和视觉模块，只在最后阶段为了最终效果进行整体微调时才会调整语言模块。保证了VLM的语言能力。
