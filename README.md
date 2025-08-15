@@ -27,7 +27,7 @@
 <div align="center">
   <figure>
   <img src="./resource/smolvlm2.png" alt="smolvlm2" width="400" />
-  <figcaption>SmolVLM2的架构图</figcaption>
+  <figcaption style="text-align: center; width: 100%; margin-top: 10px;">SmolVLM2的架构图</figcaption>
   </figure>
 </div>
 
@@ -58,7 +58,7 @@ HF团队在原文中还提到了许多影像小模型VLM性能的trick，感兴�
 <div align="center">
   <figure>
   <img src="./resource/concatation.png" alt="concatation" width="400" />
-  <figcaption>将Qwen3-0.6B替换SmolVLM2的语言模型部分</figcaption>
+  <figcaption style="text-align: center; width: 100%; margin-top: 10px;">将Qwen3-0.6B替换SmolVLM2的语言模型部分</figcaption>
   </figure>
 </div>
 
@@ -121,7 +121,7 @@ Assistant:
 <div align="center">
   <figure>
   <img src="./resource/image-split.png" alt="image-split" width="400" />
-  <figcaption>SmolVLM2的完整推理流程，可以看到在图像输入前使用`image splitting`进行了预切分</figcaption>
+  <figcaption style="text-align: center; width: 100%; margin-top: 10px;">SmolVLM2的完整推理流程，可以看到在图像输入前使用`image splitting`进行了预切分</figcaption>
   </figure>
 </div>
 
@@ -156,7 +156,7 @@ transformers实现模型上下文格式控制的代码并非python语言，而�
 <div align="center">
   <figure>
   <img src="./resource/change_model.png" alt="change_model" width="400" />
-  <figcaption>替换smolvlm2的文本模块和语言模型头</figcaption>
+  <figcaption style="text-align: center; width: 100%; margin-top: 10px;">替换smolvlm2的文本模块和语言模型头</figcaption>
   </figure>
 </div>
 
@@ -214,7 +214,7 @@ smolvlm2_02B_model.generation_config.eos_token_id = 151645
 <div align="center">
   <figure>
   <img src="./resource/fail_train.png" alt="fail_train" width="800" />
-  <figcaption>SwanLab记录训练结果展示：蓝色为错误训练的完整微调loss图，可以看到损失下降很快，然而实际推理会发现模型并没有图像理解能力。冻结语言模型头（红色）后发现grad_norm为零且loss不收敛，正确的应该是黄色</figcaption>
+  <figcaption style="text-align: center; width: 100%; margin-top: 10px;">SwanLab记录训练结果展示：蓝色为错误训练的完整微调loss图，可以看到损失下降很快，然而实际推理会发现模型并没有图像理解能力。冻结语言模型头（红色）后发现grad_norm为零且loss不收敛，正确的应该是黄色</figcaption>
   </figure>
 </div>
 
@@ -256,7 +256,7 @@ smolvlm2_02B_model.model.connector = new_connector
 <div align="center">
   <figure>
   <img src="./resource/the_cauldron.png" alt="the_cauldron" width="400" />
-  <figcaption>the_cauldron数据集logo</figcaption>
+  <figcaption style="text-align: center; width: 100%; margin-top: 10px;">the_cauldron数据集logo</figcaption>
   </figure>
 </div>
 
@@ -265,7 +265,7 @@ smolvlm2_02B_model.model.connector = new_connector
 <div align="center">
   <figure>
   <img src="./resource/data_show.png" alt="data_show" width="800" />
-  <figcaption>数据集样本展示</figcaption>
+  <figcaption style="text-align: center; width: 100%; margin-top: 10px;">数据集样本展示</figcaption>
   </figure>
 </div>
 
@@ -518,9 +518,7 @@ accelerate launch --num_process 8 train.py ./cocoqa_train.yaml
 <div align="center">
   <figure>
   <img src="./resource/dog.png" alt="dog" width="250" />
-
-  <figcaption>附上三只眼神忧伤的狗子，难道长得很像兔子吗？</figcaption>
-
+  <figcaption style="text-align: center; width: 100%; margin-top: 10px;">附上三只眼神忧伤的狗子，难道长得很像兔子吗？</figcaption>
   </figure>
 </div>
 
@@ -541,7 +539,7 @@ accelerate launch --num_processes 8 train.py ./full_train.yaml
 <div align="center">
   <figure>
   <img src="./resource/good_case.png" alt="good_case" width="800" />
-  <figcaption>同样的图片与问题，更大的数据量和更充足的数据使得模型能够正确给出回复</figcaption>
+  <figcaption style="text-align: center; width: 100%; margin-top: 10px;">同样的图片与问题，更大的数据量和更充足的数据使得模型能够正确给出回复</figcaption>
   </figure>
 </div>
 
