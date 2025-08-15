@@ -1,0 +1,14 @@
+{
+    "python.defaultInterpreterPath": "${env:CONDA_PREFIX}/envs/myvlm/bin/python",
+    "python.terminal.activateEnvironment": true,
+    "python.condaPath": "${env:CONDA_PREFIX}/bin/conda",
+    "terminal.integrated.env.osx": {
+        "CONDA_ENV_NAME": "myvlm"
+    },
+    "python.linting.enabled": true,
+    "python.formatting.provider": "black",
+    "editor.formatOnSave": true,
+    "python.analysis.extraPaths": [
+        "${workspaceFolder}"
+    ]
+}
