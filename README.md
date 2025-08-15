@@ -518,7 +518,9 @@ accelerate launch --num_process 8 train.py ./cocoqa_train.yaml
 <div align="center">
   <figure>
   <img src="./resource/dog.png" alt="dog" width="250" />
+
   <figcaption>附上三只眼神忧伤的狗子，难道长得很像兔子吗？</figcaption>
+
   </figure>
 </div>
 
