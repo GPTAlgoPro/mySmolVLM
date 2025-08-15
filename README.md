@@ -1,11 +1,11 @@
-# mySmolVLM - 超小中文多模态模型的“拼接微调”
+# mySmolVLM - 一种超小中文多模态模型的“拼接微调”方法
 
 * 原始项目参见：https://github.com/KwaiGroup/Qwen3-SmVL-VLM
-* 本项目尝试基于原始项目做一个扩展，最终希望开发一个类似[huggingSnap](https://github.com/huggingface/HuggingSnap)iOS App
+* 本项目尝试基于上述原始项目做一个扩展，最终希望基于拼接微调的miniVLM开发一个可以在iPhone14 pro以上设备本地运行的iOS应用
 
 ## 摘要
   
-最近Huggingface团队发布了超小多模态模型SmolVLM2，可以做到端侧1GB显存推理。在怀着惊喜试用后发现，虽然模型有极其强大的视觉文本理解能力，但是模型却无法理解中文。因此萌生了把当前中文小模型扛把子Qwen3与SmolVLM2直接微调拼接的想法。本项目介绍一种模型拼接的思路，将SmolVLM2的视觉模块（0.09B）与Qwen3最小的模型（0.6B）进行对齐微调，最终使得Qwen模型具备一定的视觉理解能力。
+最近Huggingface团队发布了超小多模态模型SmolVLM2，可以做到端侧1GB显存推理。在怀着惊喜试用后发现，虽然模型有极其强大的视觉文本理解能力，但是模型却无法理解中文。因此萌生了把当前中文小模型扛把子Qwen3与SmolVLM2直接微调拼接的想法。本项目介绍一种模型拼接的思路，将SmolVLM2的视觉模块（0.09B）与Qwen3最小的模型（0.6B）进行对齐微调，最终使Qwen3模型具备一定的视觉理解能力。
 
 ## 特性
 
