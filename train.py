@@ -14,10 +14,16 @@ from transformers.trainer_utils import get_last_checkpoint
 import datasets
 import swanlab
 
-from utils import load_model, load_processor
+from utils import load_model, load_processor, freeze_model, print_trainable_parameters
 
-# 设置默认设备为CUDA
-device = "cuda"
+# 设置默认设备，自动检测Apple Silicon或CUDA
+import platform
+if platform.system() == "Darwin" and platform.processor() == "arm":
+    device = "mps" if torch.backends.mps.is_available() else "cpu"
+    print(f"检测到Apple Silicon，使用{device}设备")
+else:
+    device = "cuda" if torch.cuda.is_available() else "cpu"
+    print(f"使用{device}设备")
 
 ################
 # 加载数据集
@@ -97,58 +103,8 @@ def load_mm_data(select_data):
 
 
 ################
-# 冻结模型参数&打印模型可训练参数数
+# 数据处理函数
 ################
-def freeze_model(qwen_smvl):
-    """
-    冻结模型的部分参数，只保留特定层可训练。
-    
-    该函数冻结模型的文本编码器和视觉编码器参数，只保留连接器层和输出层可训练。
-    
-    Args:
-        qwen_smvl (AutoModelForImageTextToText): 需要冻结参数的模型实例。
-    
-    Returns:
-        AutoModelForImageTextToText: 参数已冻结的模型实例。
-    
-    Example:
-        >>> model = load_model()
-        >>> model = freeze_model(model)
-        >>> print_trainable_parameters(model)  # 查看可训练参数数量
-    """
-    for _, param in qwen_smvl.model.text_model.named_parameters():
-        param.requires_grad = False
-    for _, param in qwen_smvl.model.vision_model.named_parameters():
-        param.requires_grad = False
-    # for _, param in qwen_smvl.lm_head.named_parameters():
-    #     param.requires_grad = False
-    return qwen_smvl
-
-
-def print_trainable_parameters(model):
-    """
-    打印模型的可训练参数数量和比例。
-    
-    Args:
-        model (torch.nn.Module): 需要分析的模型实例。
-    
-    Returns:
-        None: 直接打印参数统计信息，不返回值。
-    
-    Example:
-        >>> model = load_model()
-        >>> print_trainable_parameters(model)
-        trainable params: 12.34M || all params: 123.45M || trainable%: 10.0
-    """
-    trainable_params = 0
-    all_param = 0
-    for _, param in model.named_parameters():
-        all_param += param.numel()
-        if param.requires_grad:
-            trainable_params += param.numel()
-    print(
-        f"trainable params: {trainable_params/(2**20):.2f}M || all params: {all_param/(2**20):.2f}M || trainable%: {100 * trainable_params / all_param}"
-    )
 
 
 ################
@@ -210,7 +166,15 @@ def data_collate_fix2k(examples, processor, device, max_length=2048):
     labels[labels == processor.tokenizer.pad_token_id] = -100  # 忽略padding token的损失
     labels[labels == processor.image_token_id] = -100  # 忽略图像token的损失
     batch["labels"] = labels
-    return batch.to(device, dtype=torch.bfloat16)
+    # 在Apple Silicon上，MPS后端可能不完全支持bfloat16，根据设备类型选择数据类型
+    if device == "mps":
+        try:
+            return batch.to(device, dtype=torch.bfloat16)
+        except RuntimeError:
+            print("警告: MPS设备不支持bfloat16，回退到float32")
+            return batch.to(device)
+    else:
+        return batch.to(device, dtype=torch.bfloat16)
 
 
 ################
@@ -269,13 +233,16 @@ class MyTrainArgs(TrainingArguments):
     save_steps: int = 10
     save_total_limit: int = 8
     optim: str = "adamw_torch"
-    bf16: bool = True
+    bf16: bool = True  # 默认启用bf16，在MPS设备上会自动检测并调整
     output_dir: str = "./model/qwen-smovlm"
     overwrite_output_dir: bool = True
     report_to: str = "swanlab"
     run_name: str = "freeze_except_connector_fulldata"
     remove_unused_columns: bool = False
     gradient_checkpointing: bool = False
+    dataloader_num_workers: int = 2
+    max_grad_norm: float = 1.0
+    fp16_opt_level: str = "O1"
 
 
 def main(training_args):
@@ -302,8 +269,27 @@ def main(training_args):
     ################
     # 初始化模型&Tokenizer
     ################
+    # 使用全局定义的device变量
+    global device
     qwen_smvl_processor = load_processor()
     qwen_smvl = load_model(device)
+    
+    # Apple Silicon 优化
+    if device == "mps":
+        print("检测到 Apple Silicon，应用 MPS 优化...")
+        # 检查是否支持 bfloat16
+        try:
+            torch.zeros(1, device=device, dtype=torch.bfloat16)
+            print("MPS 支持 bfloat16")
+            training_args.bf16 = True
+        except RuntimeError:
+            print("MPS 不支持 bfloat16，使用 float32")
+            training_args.bf16 = False
+        
+        # 调整内存使用
+        training_args.gradient_accumulation_steps = max(training_args.gradient_accumulation_steps, 8)
+        print(f"已调整梯度累积步数为: {training_args.gradient_accumulation_steps}")
+    
     # 冻结参数
     qwen_smvl = freeze_model(qwen_smvl)
     # 打印可训练参数量
@@ -313,7 +299,8 @@ def main(training_args):
     # 准备训练数据集
     ################
     raw_data = load_mm_data(select_data=training_args.train_data)
-    print(f"总数据条数：{raw_data}")
+    print(f"训练集大小: {len(raw_data['train'])}")
+    print(f"测试集大小: {len(raw_data['test'])}")
 
     # data formatting
     collate_fn = partial(
@@ -386,7 +373,16 @@ def main(training_args):
                 return_tensors="pt",
                 padding_side="left",
                 padding=True,
-            ).to(qwen_smvl.device, dtype=torch.bfloat16)
+            )
+            # 根据设备类型选择数据类型
+            if qwen_smvl.device.type == "mps":
+                try:
+                    batch = batch.to(qwen_smvl.device, dtype=torch.bfloat16)
+                except RuntimeError:
+                    print("警告: MPS设备不支持bfloat16，回退到float32")
+                    batch = batch.to(qwen_smvl.device)
+            else:
+                batch = batch.to(qwen_smvl.device, dtype=torch.bfloat16)
             generated_ids = qwen_smvl.generate(
                 **batch, do_sample=False, max_new_tokens=256
             )
