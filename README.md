@@ -1,10 +1,11 @@
 # 超小中文多模态模型的“拼接微调”
+---
 * 原始项目参见：https://github.com/KwaiGroup/Qwen3-SmVL-VLM
 * 本项目尝试基于原始项目做一个扩展，最终希望开发一个类似[huggingSnap](https://github.com/huggingface/HuggingSnap)iOS demo应用
 * 以下文字基于原作者readme修改，主要是便于在本项目中做好记录并便于迭代
 
 ## 摘要
-
+---
 最近Huggingface团队发布了超小多模态模型SmolVLM2，可以做到端侧1GB显存推理。在怀着惊喜试用后发现，虽然模型有极其强大的视觉文本理解能力，但是模型却无法理解中文。因此萌生了把当前中文小模型扛把子Qwen3与SmolVLM2直接微调拼接的想法。
 
 本教程将介绍一种模型拼接的思路，将SmolVLM2的视觉模块（0.09B）与Qwen3最小的模型（0.6B）进行对齐微调，最终使得Qwen模型具备一定的视觉理解能力。
@@ -14,7 +15,7 @@
 </div>
 
 ## 目录
-
+---
 * [SmolVLM2的背景知识](#SmolVLM2的背景知识)
 * [模型拼接和微调思路简介](#模型拼接和微调思路简介)
 * [模型拼接实现和关键代码讲解](#模型拼接实现和关键代码讲解)
@@ -24,7 +25,7 @@
 * [代码及数据集链接汇总](#代码及数据集链接汇总)
 
 ## SmolVLM2的背景知识
-
+---
 首先，我们先回顾一下SmolVLM2模型的构建方案，SmolVLM2模型的整体包括三大块：视觉模型层，特征映射层和大语言模型层，见下图：
 
 <div align="center">
@@ -49,7 +50,7 @@
 HF团队在原文中还提到了许多影像小模型VLM性能的trick，感兴趣的读者可以进一步参考SmolVLM2的论文。
 
 ## 模型拼接和微调思路简介
-
+---
 正所谓顶级食材（模型）只需要最简单的烹饪。模型拼接的思路非常简单直接，基本就三步：
 
 1. 调整SmolVLM2的“上下文控制格式”，使得其与Qwen3兼容。
@@ -72,7 +73,7 @@ HF团队在原文中还提到了许多影像小模型VLM性能的trick，感兴�
 笔者接下来详细介绍下为了实现“拼接”，具体改动的地方，供之后有类似的任务的读者参考。
 
 ## 模型拼接实现和关键代码讲解
-
+---
 ### 第一处改动：SmolVLM2的Tokenizers部分
 
 首先需要改动的就是需要改动的是SmolVLM2的Tokenizers部分，这里面主要是涉及两个问题：
@@ -254,7 +255,7 @@ smolvlm2_02B_model.model.connector = new_connector
 ```
 
 ## 微调数据集构建
-
+---
 笔者最初计划寻找中文多模态数据集，但发现相关的资料比较少。因此决定先用英文的多模态数据集凑合一下。之后再考虑通过数据合成的方式将部分数据翻译为中文。关于数据合成和配比的问题将在之后的博客讨论。
 
 <div align="center">
@@ -287,7 +288,7 @@ smolvlm2_02B_model.model.connector = new_connector
 笔者在实际测试时发现"mimic_cgd"，"localized_narratives"，"okvqa"，"ocrvqa"，"clevr_math"这几个子数据集加载有点异常，建议使用此数据集训练的读者手动处理下，社区也有用户反馈这几个数据可以在原始来源处额外下载，未来笔者将会补全这几个数据集重新上传一次完整版的the Cauldron数据集。
 
 ## 微调方法与代码实现
-
+---
 ### 冻结模型参数微调
 
 整体微调方法采用了CLM模型通常的Teacher Forcing的学习方法，损失就是标准的交叉熵损失。考虑到此次本教程的目标是先确保模型具备中文多模态能力（优化模型性能等之后撰写其他博客），因此为了实验效率，在对齐微调阶段**采用冻结视觉模型与文本模型，仅微调特征映射器和语言模型头**的方法。
@@ -491,7 +492,7 @@ qwen_smvl.save_pretrained(training_args.output_dir)
 或者直接由[完整项目GitHub地址]()
 
 ## 微调训练&结果展示
-
+---
 ### 环境安装与微调代码执行
 
 **代码准备与环境安装**
@@ -510,7 +511,7 @@ pip install -r requirements.txt
 bash download_resource.sh
 ```
 
-### 小批量微调训练
+**小批量微调训练**
 
 为了进行快速验证，笔者首先使用cocoqa数据集并且进行了200steps的训练，所有参数与前文所述一致。通过
 
@@ -535,7 +536,7 @@ accelerate launch --num_process 8 train.py ./cocoqa_train.yaml
 </div>
 
 
-### 完整微调训练结果展示
+**完整微调训练结果展示**
 
 运行实验命令如下：
 
@@ -558,25 +559,17 @@ accelerate launch --num_processes 8 train.py ./full_train.yaml
 </div>
 
 ## 代码及数据集链接汇总
-
-微调用The Cauldron数据集下载链接：
+---
+**微调用The Cauldron数据集下载链接：**
 
 * HuggingFace Hub: [https://huggingface.co/datasets/HuggingFaceM4/the_cauldron](https://huggingface.co/datasets/HuggingFaceM4/the_cauldron)
 * ModelScope: [https://modelscope.cn/datasets/AI-ModelScope/the_cauldron](https://modelscope.cn/datasets/AI-ModelScope/the_cauldron)
 
-Qwen3-0.6B模型下载：
+**Qwen3-0.6B模型下载：**
 
 * HuggingFace Hub: [https://huggingface.co/Qwen/Qwen3-0.6B](https://huggingface.co/Qwen/Qwen3-0.6B)
 * ModelScope: [https://modelscope.cn/Qwen/Qwen3-0.6B](https://modelscope.cn/Qwen/Qwen3-0.6B)
 
-本实验完整代码GitHub链接：
-
-* 完整项目GitHub地址：[https://github.com/ShaohonChen/Qwen3-SmVL](https://github.com/ShaohonChen/Qwen3-SmVL)
-
-本实验SwanLab日志：
-
-* SwanLab训练过程查看：[https://swanlab.cn/@ShaohonChen/Qwen3-SmVL/overview](https://swanlab.cn/@ShaohonChen/Qwen3-SmVL/overview)
-
 ## 参考资料
-
+---
 * Huggingface SmolVLM2技术报告：[https://arxiv.org/pdf/2504.05299](https://arxiv.org/pdf/2504.05299)
