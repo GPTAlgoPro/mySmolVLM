@@ -30,8 +30,10 @@
 <div align="center">
   <figure>
   <img src="./resource/smolvlm2.png" alt="smolvlm2" width="400" />
+  <br>
+  <figcaption style="text-align: center; width: 100%; margin-top: 10px;">SmolVLM2的架构图</figcaption>
   </figure>
-    <text style="text-align: center; width: 100%; margin-top: 10px;">SmolVLM2的架构图</text>
+  <br>
 </div>
 
 这个设计是现在比较常见的VLM方案。核心设计思想就是让视觉模型的输出特征与经过embedding的文本特征直接拼接后输入到语言模型（LLM）当中，没有交叉注意力等模块。相比于早期LLaVA等架构，这种最大的优点就是可以最大程度复用已有的语言模型。以Qwen2.5-VL为例，其3B、7B、72B模型大小指的只是LLM部分，并没有包含Vision模块，实际上3B模型的参数量接近4B，视觉模块大概0.4B左右，三个不同大小的VLM使用的是统一的视觉模型。对于一些较大的VLM来说，构建视觉模型时绝大多数的训练都集中在特征映射模块和视觉模块，只在最后阶段为了最终效果进行整体微调时才会调整语言模块。保证了VLM的语言能力。
@@ -61,8 +63,10 @@ HF团队在原文中还提到了许多影像小模型VLM性能的trick，感兴�
 <div align="center">
   <figure>
   <img src="./resource/concatation.png" alt="concatation" width="400" />
+  <br>
   <figcaption style="text-align: center; width: 100%; margin-top: 10px;">将Qwen3-0.6B替换SmolVLM2的语言模型部分</figcaption>
   </figure>
+  <br>
 </div>
 
 笔者接下来详细介绍下为了实现“拼接”，具体改动的地方，供之后有类似的任务的读者参考。
@@ -124,8 +128,10 @@ Assistant:
 <div align="center">
   <figure>
   <img src="./resource/image-split.png" alt="image-split" width="400" />
+  <br>
   <figcaption style="text-align: center; width: 100%; margin-top: 10px;">SmolVLM2的完整推理流程，可以看到在图像输入前使用`image splitting`进行了预切分</figcaption>
   </figure>
+  <br>
 </div>
 
 **本博文的拼接模型Qwen3-SmVL模型**
@@ -159,8 +165,10 @@ transformers实现模型上下文格式控制的代码并非python语言，而�
 <div align="center">
   <figure>
   <img src="./resource/change_model.png" alt="change_model" width="400" />
+  <br>
   <figcaption style="text-align: center; width: 100%; margin-top: 10px;">替换smolvlm2的文本模块和语言模型头</figcaption>
   </figure>
+  <br>
 </div>
 
 以Qwen3为例，预训练Backbone模型为`Qwen3Model`，仅仅包含embedding层、各个Decoder层，最后输出的是所有输入token的hidden state。负责下游任务的Qwen3提供了包括：用于因果语言序列生成的`Qwen3ForCausalLM`，也就是大家常用的语言生成。负责句子分类`Qwen3ForSequenceClassification`，使用最后一个生成的token输入到一个单层MLP做序列级分类，做句子情绪分类等可以用这个下游模型；`Qwen3ForTokenClassification`用于做Token级分类，比如语言实体抽取任务可以使用这个下游模型。`Qwen3ForQuestionAnswering`则是专门做抽取式问答任务的模型，核心思想是输入（问题，参考文本）让模型从参考文本中找到与问题最相关的一段，这类任务由于RAG系统的出现没那么流行了，未来笔者专门出一个系列的教程阐述除了因果语言序列生成以外的任务则怎么微调。
@@ -212,16 +220,9 @@ smolvlm2_02B_model.generation_config.eos_token_id = 151645
 ···
 ```
 
-上面的代码可以看到在替换各个变量时需要将嵌套模型的变量一起替换掉，笔者之前训练时就因为仅仅替换了`SmolVLMForConditionalGeneration`而忘记替换`SmolVLMModel`中的`image_token_id`，导致语言模型接收不到图像特征，最后表现出来就是loss下降的极快且低，grad_norm看起来也学到位了，一推理效果特别差，附上错误训练的损失图：
+上面的代码可以看到在替换各个变量时需要将嵌套模型的变量一起替换掉，笔者之前训练时就因为仅仅替换了`SmolVLMForConditionalGeneration`而忘记替换`SmolVLMModel`中的`image_token_id`，导致语言模型接收不到图像特征，最后表现出来就是loss下降的极快且低，grad_norm看起来也学到位了，一推理效果特别差。因此如果读者用`SmolVLMForConditionalGeneration`的时候请注意将`SmolVLMForConditionalGeneration`的变量和`SmolVLMModel`的变量同时替换。
 
-<div align="center">
-  <figure>
-  <img src="./resource/fail_train.png" alt="fail_train" width="800" />
-  <figcaption style="text-align: center; width: 100%; margin-top: 10px;">SwanLab记录训练结果展示：蓝色为错误训练的完整微调loss图，可以看到损失下降很快，然而实际推理会发现模型并没有图像理解能力。冻结语言模型头（红色）后发现grad_norm为零且loss不收敛，正确的应该是黄色</figcaption>
-  </figure>
-</div>
-
-笔者最早没发现改动错误，先做完整微调（蓝色曲线）后发现损失下降很快达到了0.1以下，结果实际一推理发现模型完全没有图像理解能力，就补了一个冻结语言模型只微调视觉模型的实验（红色曲线），结果发现损失完全没下降，才定位到了视觉特征传入有问题。后续修复后正确的损失下降过程见黄色图像。
+笔者最早没发现改动错误，先做完整微调后发现损失下降很快达到了0.1以下，结果实际一推理发现模型完全没有图像理解能力，就补了一个冻结语言模型只微调视觉模型的实验（红色曲线），结果发现损失完全没下降，才定位到了视觉特征传入有问题。后续修复后正确的损失下降过程见黄色图像。
 
 ### 第三处改动：构建和替换特征映射层
 
@@ -259,8 +260,10 @@ smolvlm2_02B_model.model.connector = new_connector
 <div align="center">
   <figure>
   <img src="./resource/the_cauldron.png" alt="the_cauldron" width="400" />
+  <br>
   <figcaption style="text-align: center; width: 100%; margin-top: 10px;">the_cauldron数据集logo</figcaption>
   </figure>
+  <br>
 </div>
 
 这里为了方便本项目直接使用HuggingFace团队整合的多模态数据集the Cauldron数据集，Cauldron翻译成中文类似于煮东西的“釜”，不知道HF团队是不是玩“炼丹”的梗。这个数据集整合了50个视觉微调任务数据集的训练集，用于微调Huggingface发布的多模态模型Idefics2模型。这50多个数据集都被处理成了一致的格式（见下图），共有1,880,992条数据，完整下载约169G，非常方便使用。
@@ -268,8 +271,10 @@ smolvlm2_02B_model.model.connector = new_connector
 <div align="center">
   <figure>
   <img src="./resource/data_show.png" alt="data_show" width="800" />
+  <br>
   <figcaption style="text-align: center; width: 100%; margin-top: 10px;">数据集样本展示</figcaption>
   </figure>
+  <br>
 </div>
 
 不过可惜数据集的文本都是英文内容，且绝大多数数据集的回复非常短，只有一个词，这也给后面模型训练带来了麻烦。本篇博客暂时不讨论关于数据构建和配比的问题，后续有时间了专门做相关的实验。本博客先以为Qwen3模型带来视觉能力为核心目标。
@@ -328,8 +333,10 @@ trainable params: 12.00M || all params: 662.87M || trainable%: 1.81
 <div align="center">
   <figure>
   <img src="./resource/mask.png" alt="mask" width="800" />
+  <br>
   <figcaption>两种微调掩码策略的差异，通常建议选择“仅微调模型回答部分”以增强泛化性</figcaption>
   </figure>
+  <br>
 </div>
 
 通常来说使用“仅微调模型回复部分”的策略模型更容易泛化（这点与HF在SmolVLM2的论文提到的trick）。然而笔者为了提高训练效率选择了完整文本微调。可以在后续博客中增加消融实验做进一步对比。
@@ -521,8 +528,10 @@ accelerate launch --num_process 8 train.py ./cocoqa_train.yaml
 <div align="center">
   <figure>
   <img src="./resource/dog.png" alt="dog" width="250" />
+  <br>
   <figcaption style="text-align: center; width: 100%; margin-top: 10px;">附上三只眼神忧伤的狗子，难道长得很像兔子吗？</figcaption>
   </figure>
+  <br>
 </div>
 
 
@@ -542,8 +551,10 @@ accelerate launch --num_processes 8 train.py ./full_train.yaml
 <div align="center">
   <figure>
   <img src="./resource/good_case.png" alt="good_case" width="800" />
+  <br>
   <figcaption style="text-align: center; width: 100%; margin-top: 10px;">同样的图片与问题，更大的数据量和更充足的数据使得模型能够正确给出回复</figcaption>
   </figure>
+  <br>
 </div>
 
 ## 代码及数据集链接汇总
