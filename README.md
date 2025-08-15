@@ -1,4 +1,4 @@
-# mySmolVLM - 一种超小中文多模态模型的“拼接微调”方法
+# miniVLM - 一种超小中文多模态模型的“拼接微调”方法
 
 * 原始项目参见：https://github.com/KwaiGroup/Qwen3-SmVL-VLM
 * 本项目尝试基于上述原始项目做一个扩展，最终希望基于拼接微调的miniVLM开发一个可以在iPhone14 pro以上设备本地运行的iOS应用
@@ -114,7 +114,27 @@ python train.py --train_data cocoqa --output_dir ./model/qwen-smolvlm-cocoqa --l
 
 ## 推理示例
 
-训练完成后，模型会自动使用示例图片进行推理测试，并通过 SwanLab 记录结果。
+训练完成后，模型会自动使用示例图片进行推理测试，并通过 SwanLab 记录结果。您也可以使用以下命令进行自定义推理：
+
+```bash
+python inference.py --image_path ./resource/dog.png --question "图中有什么动物?"
+```
+
+推理结果也会自动记录到 SwanLab，可以在浏览器中查看可视化结果。
+
+## SwanLab 可视化
+
+本项目集成了 SwanLab 用于训练过程可视化和结果展示。使用方法：
+
+1. 训练开始后，SwanLab 会自动启动一个本地服务器
+2. 在浏览器中访问 http://localhost:8888 查看训练进度和结果
+3. 可以实时查看以下指标：
+   - 训练损失和学习率曲线
+   - 模型在测试集上的表现
+   - 样本图像及其生成结果
+   - 模型输出的完整上下文
+
+如果需要自定义 SwanLab 配置，可以在 YAML 配置文件中修改 `report_to` 参数。
 
 ## 自定义训练
 

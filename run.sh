@@ -56,5 +56,10 @@ fi
 
 echo "训练完成!"
 echo "模型已保存到 ./model/qwen-smovlm 目录"
+
+# 提示SwanLab可视化
+echo "SwanLab可视化界面: http://localhost:8888"
+echo "可以在浏览器中查看训练过程和结果"
+
 echo "可以使用以下命令进行推理测试:"
 echo "python3 inference.py --image_path ./resource/dog.png --question \"图中有什么动物?\""

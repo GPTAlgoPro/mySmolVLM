@@ -2,6 +2,7 @@ import argparse
 import os
 from PIL import Image
 import torch
+import swanlab
 
 from utils import load_model, load_processor
 
@@ -127,6 +128,33 @@ def main():
     print("-"*50)
     print(f"回答: {generated_text}")
     print("="*50)
+    
+    # 记录结果到SwanLab
+    try:
+        # 初始化SwanLab实验
+        swanlab.init(
+            experiment_name="inference_result",
+            description="推理结果可视化",
+            config=vars(args)
+        )
+        
+        # 创建表格
+        table = swanlab.echarts.Table()
+        headers = ["问题", "回答"]
+        rows = [[args.question, generated_text]]
+        table.add(headers, rows)
+        
+        # 记录结果
+        swanlab.log({
+            "inference/输入图像": swanlab.Image(image),
+            "inference/问题&回答": table,
+        })
+        
+        print("\nSwanLab可视化界面: http://localhost:8888")
+        print("可以在浏览器中查看推理结果")
+    except Exception as e:
+        print(f"\n记录SwanLab结果时出错: {e}")
+        print("推理结果未记录到SwanLab，但不影响模型输出")
 
 if __name__ == "__main__":
     main()
