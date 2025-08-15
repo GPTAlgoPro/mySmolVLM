@@ -1,4 +1,7 @@
 # 超小中文多模态模型的“拼接微调”
+* 原始项目参见：https://github.com/KwaiGroup/Qwen3-SmVL-VLM
+* 本项目尝试基于原始项目做一个扩展，最终希望开发一个类似[huggingSnap](https://github.com/huggingface/HuggingSnap)iOS demo应用
+* 以下文字基于原作者readme修改，主要是便于在本项目中做好记录并便于迭代
 
 ## 摘要
 
