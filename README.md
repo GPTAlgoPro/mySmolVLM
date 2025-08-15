@@ -1,32 +1,10 @@
-# Qwen3-"VL"——超小中文多模态模型的“拼接微调”之路1（附代码和SwanLab记录）
-
-* 作者：情感机器实验室——陈少宏
-
-* 邮箱：<shaohon_chen@115lab.club>
-
-* GitHub：[https://github.com/ShaohonChen/Qwen3-SmVL](https://github.com/ShaohonChen/Qwen3-SmVL)
-* SwanLab：[https://swanlab.cn/@ShaohonChen/Qwen3-SmVL/overview](https://swanlab.cn/@ShaohonChen/Qwen3-SmVL/overview)
-* 数据集：[https://huggingface.co/datasets/HuggingFaceM4/the_cauldron](https://huggingface.co/datasets/HuggingFaceM4/the_cauldron)
-
-> 💚 **特别感谢**  
-> 感谢 [@zhihuazhao-bit](https://github.com/zhihuazhao-bit) 帮我审阅和修复了代码中众多的小 bug，并在 NV 上完成了测试。
+# 超小中文多模态模型的“拼接微调”
 
 ## 摘要
 
-最近Huggingface团队发布了超小多模态模型SmolVLM2，可以做到端侧1GB显存推理。在怀着惊喜试用后发现，虽然模型有极其强大的视觉文本理解能力，但是模型却无法理解中文。这对一个“四六级压线过”的笔者来说十分不友好。刚好前段时间做SwanLab硬件检测适配时有一台未到期的沐曦曦云C500服务器，因此萌生了使用**沐曦GPU芯片**微调、把当前中文小模型扛把子Qwen3与SmolVLM2直接微调拼接的想法。
+最近Huggingface团队发布了超小多模态模型SmolVLM2，可以做到端侧1GB显存推理。在怀着惊喜试用后发现，虽然模型有极其强大的视觉文本理解能力，但是模型却无法理解中文。因此萌生了把当前中文小模型扛把子Qwen3与SmolVLM2直接微调拼接的想法。
 
-本教程将介绍一种模型拼接的思路，将SmolVLM2的视觉模块（0.09B）与Qwen3最小的模型（0.6B）进行对齐微调，最终使得Qwen模型具备一定的视觉理解能力。由于笔者时间有限且考虑到文章篇幅的原因，因此该系列预计将以系列的方式放出。篇幅规划如下：
-
-* **第一篇**：如何构建和微调一个拼接模型（**本篇博客**）
-* **第二篇**：模型测评、数据集优化、回答人类对齐
-* **第三篇**：微调技巧介绍、视觉位置编码改动与模型结构优化
-
-<div align="center">
-  <figure>
-  <img src="./resource/PPAP.png" alt="PPAP" width="400" />
-  <figcaption>I have a Qwen, I have a SmolVLM...</figcaption>
-  </figure>
-</div>
+本教程将介绍一种模型拼接的思路，将SmolVLM2的视觉模块（0.09B）与Qwen3最小的模型（0.6B）进行对齐微调，最终使得Qwen模型具备一定的视觉理解能力。
 
 <div style="background-color:#fff3cd; color:black; padding:10px; border-radius:4px; border:1px solid #fbe5b0; width: 90%; max-width: 100%; margin: auto;">
   ⚠️关于算力的注意：本教程涉及VLM微调训练，对算力要求较高，需要40G及以上的GPU显存才能运行本教程的训练代码。
@@ -444,21 +422,10 @@ training_args = TrainingArguments(
 
 ### 训练环境
 
-微调代码基于沐曦的C500国产通用计算GPU实现，显存为64G。沐曦的AI芯片基本完全兼容pytorch和huggingface transformers场景，并且在做多模态训练时相比较其他国产AI芯片罕见的没有兼容性问题。读者在尝试本项目代码时可以采用Nvidia显存40G以上的显卡运行本教程。
-
-**笔者个人感觉沐曦的GPU整体适配效果还是非常好的，没遇到适配性的问题。体验上和用NV的GPU做训练没什么区别**。笔者自己也用过好几款国产GPU，沐曦的体验肯定是名列前茅的，包括代码中有指定flash attention在沐曦GPU上都能成功迁移，这点非常值得给沐曦团队点个赞。希望国产GPU生态能越发展越好，造福广大炼丹师；）。
-
-<div align="center">
-  <figure>
-  <img src="./resource/muxi-gpu.jpg" alt="muxi-gpu" width="400" />
-  <figcaption>沐曦国产GPU，笔者用的云端服务器没见过真机，因此找了张网图</figcaption>
-  </figure>
-</div>
-
-训练环境的话除了安装GPU对应的驱动和pytorch外，本教程需要额外安装Huggingface全家桶，如下：
+微调代码可以运行在Nvidia显存40G以上的显卡。训练环境的话除了安装GPU对应的驱动和pytorch外，本教程需要额外安装Huggingface全家桶，如下：
 
 ```txt
-torch   # 推荐版本>=6.0
+torch   # 推荐版本>=2.0
 torchvision
 transformers>=4.53.0
 accelerate
@@ -466,77 +433,9 @@ datasets
 num2words   # SmolVLM2需要
 ```
 
-额外补充一句，如果采用沐曦GPU训练的话，需要在沐曦官方文档处寻找[沐曦版torch](https://developer.metax-tech.com/softnova/index)的安装方式进行下载。其他HF环境和NV基本一样。附赠一个沐曦查看GPU的命令：
-
-```bash
-mx-smi
-```
-
-效果如下：
-
-```bash
-=================== MetaX System Management Interface Log ===================
-Timestamp                                         : Sat Jul 12 14:58:51 2025
-
-Attached GPUs                                     : 8
-+---------------------------------------------------------------------------------+
-| MX-SMI 2.1.12                       Kernel Mode Driver Version: 2.12.13         |
-| MACA Version: 2.29.0.19             BIOS Version: 1.22.3.0                      |
-|------------------------------------+---------------------+----------------------+
-| GPU         NAME                   | Bus-id              | GPU-Util             |
-| Temp        Pwr:Usage/Cap          | Memory-Usage        |                      |
-|====================================+=====================+======================|
-| 0           MetaX C500             | 0000:0e:00.0        | 0%                   |
-| 36C         69W / 350W             | 5680/65536 MiB      |                      |
-+------------------------------------+---------------------+----------------------+
-| 1           MetaX C500             | 0000:0f:00.0        | 0%                   |
-| 38C         70W / 350W             | 4986/65536 MiB      |                      |
-+------------------------------------+---------------------+----------------------+
-| 2           MetaX C500             | 0000:10:00.0        | 0%                   |
-| 37C         69W / 350W             | 4986/65536 MiB      |                      |
-+------------------------------------+---------------------+----------------------+
-| 3           MetaX C500             | 0000:12:00.0        | 1%                   |
-| 37C         71W / 350W             | 4986/65536 MiB      |                      |
-+------------------------------------+---------------------+----------------------+
-| 4           MetaX C500             | 0000:35:00.0        | 0%                   |
-| 37C         70W / 350W             | 4986/65536 MiB      |                      |
-+------------------------------------+---------------------+----------------------+
-| 5           MetaX C500             | 0000:36:00.0        | 1%                   |
-| 36C         68W / 350W             | 4986/65536 MiB      |                      |
-+------------------------------------+---------------------+----------------------+
-| 6           MetaX C500             | 0000:37:00.0        | 0%                   |
-| 39C         73W / 350W             | 4986/65536 MiB      |                      |
-+------------------------------------+---------------------+----------------------+
-| 7           MetaX C500             | 0000:38:00.0        | 0%                   |
-| 38C         71W / 350W             | 4986/65536 MiB      |                      |
-+------------------------------------+---------------------+----------------------+
-
-+---------------------------------------------------------------------------------+
-| Process:                                                                        |
-|  GPU                    PID         Process Name                 GPU Memory     |
-|                                                                  Usage(MiB)     |
-|=================================================================================|
-|  0                  3496691         python3.10                   4066           |
-|  0                  3496692         python3.10                   102            |
-|  0                  3496693         python3.10                   102            |
-|  0                  3496694         python3.10                   102            |
-|  0                  3496695         python3.10                   102            |
-|  0                  3496696         python3.10                   102            |
-|  0                  3496697         python3.10                   102            |
-|  0                  3496698         python3.10                   170            |
-|  1                  3496692         python3.10                   4154           |
-|  2                  3496693         python3.10                   4154           |
-|  3                  3496694         python3.10                   4154           |
-|  4                  3496695         python3.10                   4154           |
-|  5                  3496696         python3.10                   4154           |
-|  6                  3496697         python3.10                   4154           |
-|  7                  3496698         python3.10                   4154           |
-+---------------------------------------------------------------------------------+
-```
-
 ### 训练代码实现
 
-在构建训练代码时，笔者使用HuggingFace Transfomers框架的Trainer类来完成训练代码。Trainer类实现的训练逻辑基本能完成大部分微调任务。这里唯一需要提到的是笔者使用了Qwen3-0.6B而非通常此类任务该使用的Qwen3-0.6B-Base模型，Qwen3-0.6B相比于Qwen3-0.6B-Base模型经过了指令遵从微调、对齐等，能实现聊天问答功能。
+在构建训练代码时，使用HuggingFace Transfomers框架的Trainer类来完成训练代码。Trainer类实现的训练逻辑基本能完成大部分微调任务。这里唯一需要提到的是笔者使用了Qwen3-0.6B而非通常此类任务该使用的Qwen3-0.6B-Base模型，Qwen3-0.6B相比于Qwen3-0.6B-Base模型经过了指令遵从微调、对齐等，能实现聊天问答功能。
 
 通常来说对经过微调的模型进行持续训练会一定程度带来性能损失，然而此次微调时笔者冻结了LLM参数，因此需要选用经过微调的模型来实现多模态问答能力。
 
@@ -605,7 +504,7 @@ bash download_resource.sh
 
 为了进行快速验证，笔者首先使用cocoqa数据集并且进行了200steps的训练，所有参数与前文所述一致。通过
 
-运行实验命令如下，推荐使用8卡进行训练，在8张沐曦GPU卡上预计需要使用20min
+运行实验命令如下：
 
 ```bash
 # 单GPU训练
@@ -613,33 +512,6 @@ CUDA_VISIBLE_DEVICES=0 python train.py ./cocoqa_train.yaml
 # 8GPU训练
 accelerate launch --num_process 8 train.py ./cocoqa_train.yaml
 ```
-
-注意，本项目使用SwanLab进行训练日志记录与分析，如果未登陆SwanLab需要使用`swanlab login`进行登陆。运行后看到如下结果即代表实验成功开启：
-
-<div align="center">
-  <figure>
-  <img src="./resource/run.png" alt="run" width="800" />
-  <figcaption>成功训练后可以看到SwanLab链接</figcaption>
-  </figure>
-</div>
-
-下面是笔者完成小批量微调训练的训练损失、测试损失结果图
-
-<div align="center">
-  <figure>
-  <img src="./resource/cocoqa_swanlab.png" alt="cocoqa_swanlab" width="800" />
-  <figcaption>SwanLab训练可视化分析结果，可以看到最后训练损失和测试损失都收敛在0.65左右</figcaption>
-  </figure>
-</div>
-
-模型在完成训练后会自动使用一张狗狗图片配合问题“图中有什么动物？”让模型根据图片进行推理，推理结果如下：
-
-<div align="center">
-  <figure>
-  <img src="./resource/bad_case.png" alt="bad_case" width="800" />
-  <figcaption>SwanLab记录了模型训练好后的推理结果，可以看到模型能正常理解和回复中文</figcaption>
-  </figure>
-</div>
 
 当时看到模型对着三只狗的图片回答“兔子”时笔者一时认为炼丹失败了，当然如果实际炼丹失败后模型是不会输出动物类型的，而是输出一些乱码或者告诉用户并没有看到图片。识别错误的原因实际上是由于训练步数过少导致的。后续加大训练步数与数据量后模型能正常识别出狗狗并且能准确的说出有三只狗。
 
@@ -650,11 +522,10 @@ accelerate launch --num_process 8 train.py ./cocoqa_train.yaml
   </figure>
 </div>
 
-PS: 作者公开了在[SwanLab上的训练结果](https://swanlab.cn/@ShaohonChen/Qwen3-SmVL/overview)，感兴趣的读者可以自己查看，SwanLab也支持Clone作者的训练日志，大家可以在自己训练时clone笔者的项目去做对照。
 
 ### 完整微调训练结果展示
 
-运行实验命令如下，推荐使用8卡进行训练，在8片沐曦C500芯片上预计需要使用1.5h
+运行实验命令如下：
 
 ```bash
 # 单GPU训练
@@ -662,44 +533,6 @@ CUDA_VISIBLE_DEVICES=0 python train.py ./full_train.yaml
 # 8GPU训练
 accelerate launch --num_processes 8 train.py ./full_train.yaml
 ```
-
-下图展示了使用完整微调数据对比于小批量训练，可以看到全量数据微调时loss变得更为抖动，这是由于数据类型的丰富给模型的学习带来了一定的挑战。
-
-<div align="center">
-  <figure>
-  <img src="./resource/fulldata_swanlab.png" alt="fulldata_swanlab" width="800" />
-  <figcaption>红色为完整训练loss，黄色为小批量训练结果</figcaption>
-  </figure>
-</div>
-
-进一步对比完整训练和小批量训练的训练和测试损失，可以看到完整训练的模型训练损失达到了0.61，远低于仅仅使用cocoqa模型的效果，评估损失也远低于前者，维持在0.58左右。
-
-<div align="center">
-  <figure>
-  <img src="./resource/evalloss.png" alt="evalloss" width="800" />
-  <figcaption>红色为完整训练loss，黄色为小批量训练结果</figcaption>
-  </figure>
-</div>
-
-这里值得一提的是，由于我们选用的测试集比较小（仅有64条数据），因此训练损失和测试损失的差距并不能直接理解为过拟合的证据。实际上在大模型训练上，如果数据集足够大的情况下，通常可以认为训练损失等同于评估损失。
-
-此外，模型通过分析1k步之后的训练损失、平均梯度范数（Grad Norm）变化。此时训练任务已过半，且学习率开始快速衰减。如下图，可以看到学习率快速衰减的情况下模型损失并没有明显的进一步下降，这说明模型已经实现了充分训练。
-
-<div align="center">
-  <figure>
-  <img src="./resource/1kstep.png" alt="1kstep" width="800" />
-  <figcaption>1k step之后模型的训练损失变化</figcaption>
-  </figure>
-</div>
-
-在训练效率方面，可以看到我们仍没有充分榨干沐曦GPU的性能，当然这也是由于多模态任务的网络本身架构上比较复杂，其中包含许多对图像、文本的拼接工作，这也导致了GPU性能没法完全利用。
-
-<div align="center">
-  <figure>
-  <img src="./resource/mx-gpu-use.png" alt="mx-gpu-use" width="800" />
-  <figcaption>SwanLab对沐曦C500训效率自动记录</figcaption>
-  </figure>
-</div>
 
 同样在完成训练后使用狗狗图进行了测试，这次模型能理解图片、中文以及给出正确的回复。更为关键的是模型完全保留了Qwen3-0.6B原有的全部能力，包括函数调用、推理等。在此基础上，仅仅增加了0.09B参数量的情况下为模型带来了图像理解能力！
 
@@ -709,12 +542,6 @@ accelerate launch --num_processes 8 train.py ./full_train.yaml
   <figcaption>同样的图片与问题，更大的数据量和更充足的数据使得模型能够正确给出回复</figcaption>
   </figure>
 </div>
-
-### 模型推理与效果分析
-
-等笔者下完数据集后未来补一下测试环节 ; ）
-
-可以关注[swanlab教程集合](https://docs.swanlab.cn/examples/qwen3_smolvlm_muxi.html)获取最新更新教程！
 
 ## 代码及数据集链接汇总
 
