@@ -2,7 +2,7 @@
 
 # 检查环境
 echo "检查环境..."
-if ! command -v python3 &> /dev/null; then
+if ! command -v python3 &>/dev/null; then
     echo "错误: 未找到 python3 命令"
     exit 1
 fi
@@ -22,17 +22,17 @@ pip install -r requirements.txt
 echo "检查模型和数据目录..."
 if [ ! -d "model/SmolVLM2-256M-Video-Instruct" ] || [ ! -d "model/Qwen3-0.6B" ] || [ ! -d "data/the_cauldron" ]; then
     echo "警告: 模型或数据目录不完整，正在运行下载脚本..."
-    
+
     # 检查下载脚本是否存在
     if [ ! -f "download_resource.sh" ]; then
         echo "错误: 未找到 download_resource.sh 脚本"
         exit 1
     fi
-    
+
     # 运行下载脚本
     echo "运行下载脚本..."
     bash download_resource.sh
-    
+
     # 再次检查目录
     if [ ! -d "model/SmolVLM2-256M-Video-Instruct" ] || [ ! -d "model/Qwen3-0.6B" ] || [ ! -d "data/the_cauldron" ]; then
         echo "错误: 下载失败，请手动检查 download_resource.sh 脚本"

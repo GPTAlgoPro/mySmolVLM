@@ -1,3 +1,9 @@
 *.DS_Store
+/.vscode
+/config
+/doc
 /data
 /model
+/__pycache__
+.venv
+/.env
