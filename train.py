@@ -110,7 +110,7 @@ def load_mm_data(select_data):
 ################
 # 数据处理
 ################
-def data_collate_fix2k(examples, processor, device, max_length=2048):
+def data_collate_fix2k(examples, processor, device, max_length=4096):  # 增加最大长度以适应更长的序列
     """
     数据批处理函数，将原始数据转换为模型输入格式。
     
@@ -160,7 +160,7 @@ def data_collate_fix2k(examples, processor, device, max_length=2048):
         max_length=max_length,
         return_tensors="pt",
         padding="max_length",
-        truncation=True,
+        truncation=False,  # 禁用截断以避免图像token不匹配问题
     )
     labels = batch["input_ids"].clone()
     labels[labels == processor.tokenizer.pad_token_id] = -100  # 忽略padding token的损失
@@ -341,7 +341,7 @@ def main(training_args):
     ################
     with torch.no_grad():
         if trainer.state.is_world_process_zero:
-            question = "图中有什么动物？"
+            question = "描述图片内容"
             messages = [
                 {
                     "role": "system",
@@ -369,10 +369,11 @@ def main(training_args):
             batch = qwen_smvl_processor(
                 text=[texts],
                 images=images,
-                max_length=1024,
+                max_length=2048,  # 增加最大长度
                 return_tensors="pt",
                 padding_side="left",
                 padding=True,
+                truncation=False,  # 禁用截断以避免图像token不匹配问题
             )
             # 根据设备类型选择数据类型
             if qwen_smvl.device.type == "mps":
